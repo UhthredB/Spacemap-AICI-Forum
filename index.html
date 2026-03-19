@@ -43,6 +43,44 @@
   #title-bar h1 { font-size: 14px; font-weight: 700; color: #fff; letter-spacing: 2px; text-transform: uppercase; }
   #title-bar .subtitle { font-size: 10px; color: #555; margin-top: 2px; }
   #post-count { font-size: 10px; color: #444; margin-top: 4px; }
+
+  /* ---------- WTF BUTTON + MODAL ---------- */
+  #wtf-btn {
+    position: fixed; bottom: 24px; left: 24px; z-index: 25;
+    background: rgba(10,10,14,0.8); backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;
+    color: #ff9500; font-family: 'Space Mono', monospace;
+    font-size: 11px; font-weight: 700; letter-spacing: 1px;
+    padding: 6px 14px; cursor: pointer; text-transform: lowercase;
+    transition: all 0.25s ease;
+  }
+  #wtf-btn:hover { color: #fff; border-color: #ff9500; box-shadow: 0 0 12px rgba(255,149,0,0.3); }
+  #wtf-overlay {
+    position: fixed; inset: 0; z-index: 100; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.7); backdrop-filter: blur(6px);
+  }
+  #wtf-overlay.open { display: flex; }
+  #wtf-modal {
+    width: 560px; max-width: 90vw; max-height: 80vh; overflow-y: auto;
+    background: rgba(12,12,18,0.95); backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 14px;
+    padding: 32px 36px; color: #ccc; line-height: 1.7;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  }
+  #wtf-modal::-webkit-scrollbar { width: 4px; }
+  #wtf-modal::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+  #wtf-modal h2 { font-size: 16px; color: #ff9500; margin-bottom: 16px; font-weight: 700; }
+  #wtf-modal h3 { font-size: 12px; color: #fff; margin: 20px 0 8px; text-transform: uppercase; letter-spacing: 1px; }
+  #wtf-modal p { font-size: 11px; margin-bottom: 10px; }
+  #wtf-modal .emoji-line { font-size: 12px; margin: 6px 0; }
+  #wtf-modal .close-modal {
+    display: inline-block; margin-top: 20px; padding: 6px 18px;
+    background: rgba(255,149,0,0.15); border: 1px solid rgba(255,149,0,0.3);
+    border-radius: 6px; color: #ff9500; font-family: 'Space Mono', monospace;
+    font-size: 10px; cursor: pointer; transition: all 0.2s;
+  }
+  #wtf-modal .close-modal:hover { background: rgba(255,149,0,0.3); color: #fff; }
   
   /* ---------- SEARCH ---------- */
   #search-wrap {
@@ -196,6 +234,41 @@
   <h1>AICI Map</h1>
   <div class="subtitle">Topologies of Alignment Thought</div>
   <div id="post-count"></div>
+</div>
+
+<button id="wtf-btn">wtf</button>
+
+<div id="wtf-overlay">
+  <div id="wtf-modal">
+    <h2>wtf is this?</h2>
+    <p>There's a big library where almost <strong>4,000 really smart people</strong> have written essays about one topic: <em>"How do we make sure super-smart AI is safe for us?"</em></p>
+    <p>These essays have been piling up since 2009. That's a LOT of reading. Nobody can read all 4,000.</p>
+    <p><strong>So we built a magic floating map of that library.</strong></p>
+
+    <h3>What are the glowing balls?</h3>
+    <p class="emoji-line">🟣 Every essay is a <strong>glowing ball</strong>. Big ball = lots of people liked it. Small ball = fewer people noticed it.</p>
+    <p class="emoji-line">🎨 Essays about similar things get the <strong>same color</strong>. There are <strong>98 different color groups</strong> (clusters).</p>
+    <p class="emoji-line">✨ When two essays talk about really similar ideas, there's a <strong>glowing thread</strong> between them. The <strong>orange sparks</strong> flowing along the threads are just to make it look alive.</p>
+
+    <h3>The 5 magic buttons</h3>
+    <p class="emoji-line">🧶 <strong>Semantic Loom</strong> — "put similar ideas near each other" (the default)</p>
+    <p class="emoji-line">🌋 <strong>Gravity Wells</strong> — "squish the big groups together so I can see what's popular"</p>
+    <p class="emoji-line">🏝️ <strong>Archipelago</strong> — "pull the groups apart like islands"</p>
+    <p class="emoji-line">⏳ <strong>Temporal Strata</strong> — "stack by time — old at the bottom, new at the top"</p>
+    <p class="emoji-line">🗺️ <strong>Influence Cartography</strong> — "put the most important authors in the middle"</p>
+
+    <h3>How to use it</h3>
+    <p class="emoji-line">👆 <strong>Hover</strong> any ball to see what essay it is</p>
+    <p class="emoji-line">👉 <strong>Click</strong> any ball to go read the original essay</p>
+    <p class="emoji-line">🔍 <strong>Search</strong> for a word — everything else goes dim</p>
+    <p class="emoji-line">🎨 Use the <strong>left panel</strong> to explore clusters — click one to isolate it</p>
+    <p class="emoji-line">🎧 Use the <strong>right panel</strong> to filter by date, score, or cluster</p>
+
+    <h3>Why does this exist?</h3>
+    <p>Reading 4,000 papers is impossible. Looking at a map is instant. This turns a giant wall of text into a 3D galaxy you can fly around in — so you can <em>see</em> the shape of AI safety research instead of trying to read it all.</p>
+
+    <span class="close-modal">got it ✓</span>
+  </div>
 </div>
 
 <div id="search-wrap">
@@ -910,6 +983,17 @@ async function init() {
 }
 
 init();
+
+// ---------- WTF MODAL ----------
+document.getElementById('wtf-btn').addEventListener('click', () => {
+  document.getElementById('wtf-overlay').classList.add('open');
+});
+document.getElementById('wtf-overlay').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) e.currentTarget.classList.remove('open');
+});
+document.querySelector('#wtf-modal .close-modal').addEventListener('click', () => {
+  document.getElementById('wtf-overlay').classList.remove('open');
+});
 </script>
 </body>
 </html>
