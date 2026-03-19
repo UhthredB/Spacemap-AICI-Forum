@@ -1,0 +1,13 @@
+# Large data files (not needed for visualization)
+af_embeddings.npy
+af_embeddings_3d.npy
+af_labels.npy
+af_posts_raw.json
+
+# Reference video
+*.mp4
+
+# Python
+__pycache__/
+*.pyc
+.DS_Store

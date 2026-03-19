@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AICI Map — Topologies of Alignment Thought</title>
+<meta name="description" content="Interactive 3D knowledge graph of AI Alignment Forum posts — explore the landscape of safety research.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { 
+    width: 100%; height: 100%; overflow: hidden;
+    font-family: 'Space Mono', monospace;
+    background: #000; color: #e0e0e0;
+  }
+  #canvas-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; }
+  
+  /* ---------- TOPOLOGY BAR ---------- */
+  #topology-bar {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 20;
+    display: flex; gap: 6px; padding: 8px 12px;
+    background: rgba(10,10,14,0.85); backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 12px;
+  }
+  .topo-btn {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px; padding: 8px 14px; cursor: pointer;
+    color: #aaa; font-family: 'Space Mono', monospace; font-size: 11px;
+    transition: all 0.3s ease; text-align: center; min-width: 120px;
+  }
+  .topo-btn:hover { background: rgba(255,255,255,0.08); color: #fff; border-color: rgba(255,255,255,0.2); }
+  .topo-btn.active { background: rgba(255,255,255,0.1); color: #fff; border-color: rgba(255,255,255,0.3); }
+  .topo-btn .name { font-weight: 700; font-size: 11px; margin-bottom: 3px; }
+  .topo-btn .desc { font-size: 9px; color: #888; font-weight: 400; line-height: 1.2; }
+  .topo-btn.active .desc { color: #bbb; }
+
+  /* ---------- TITLE ---------- */
+  #title-bar {
+    position: fixed; top: 20px; right: 24px; z-index: 20;
+    text-align: right;
+  }
+  #title-bar h1 { font-size: 14px; font-weight: 700; color: #fff; letter-spacing: 2px; text-transform: uppercase; }
+  #title-bar .subtitle { font-size: 10px; color: #555; margin-top: 2px; }
+  #post-count { font-size: 10px; color: #444; margin-top: 4px; }
+  
+  /* ---------- SEARCH ---------- */
+  #search-wrap {
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 20;
+  }
+  #search-input {
+    width: 320px; padding: 8px 14px; font-size: 12px;
+    font-family: 'Space Mono', monospace; color: #fff;
+    background: rgba(10,10,14,0.8); backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+    outline: none; transition: border-color 0.3s;
+  }
+  #search-input::placeholder { color: #555; }
+  #search-input:focus { border-color: rgba(255,255,255,0.3); }
+  
+  /* ---------- FILTER PANEL ---------- */
+  #filter-panel {
+    position: fixed; top: 100px; right: 24px; z-index: 20;
+    width: 240px; padding: 14px;
+    background: rgba(10,10,14,0.85); backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 10px;
+    font-size: 11px; max-height: calc(100vh - 160px); overflow-y: auto;
+  }
+  #filter-panel::-webkit-scrollbar { width: 4px; }
+  #filter-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+  .filter-section { margin-bottom: 14px; }
+  .filter-section label { display: block; color: #777; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .filter-section input[type="range"] {
+    width: 100%; appearance: none; height: 3px; background: rgba(255,255,255,0.15);
+    border-radius: 2px; outline: none;
+  }
+  .filter-section input[type="range"]::-webkit-slider-thumb {
+    appearance: none; width: 12px; height: 12px; border-radius: 50%;
+    background: #fff; cursor: pointer;
+  }
+  .filter-val { color: #aaa; font-size: 10px; margin-top: 3px; }
+  #cluster-select {
+    width: 100%; padding: 5px 8px; font-size: 10px; font-family: 'Space Mono', monospace;
+    background: rgba(255,255,255,0.05); color: #ccc;
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 4px;
+    max-height: 120px;
+  }
+  .toggle-row { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .toggle-row input { accent-color: #ff9500; }
+  
+  /* ---------- TIMELINE ---------- */
+  #timeline-wrap {
+    position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); z-index: 20;
+    width: 500px; text-align: center;
+  }
+  #timeline-slider {
+    width: 100%; appearance: none; height: 3px; background: rgba(255,255,255,0.12);
+    border-radius: 2px; outline: none;
+  }
+  #timeline-slider::-webkit-slider-thumb {
+    appearance: none; width: 14px; height: 14px; border-radius: 50%;
+    background: #ff9500; cursor: pointer; box-shadow: 0 0 8px rgba(255,149,0,0.5);
+  }
+  #timeline-label { font-size: 10px; color: #666; margin-top: 4px; }
+  
+  /* ---------- TOOLTIP ---------- */
+  #tooltip {
+    position: fixed; z-index: 30; pointer-events: none;
+    padding: 14px 16px; max-width: 340px;
+    background: rgba(8,8,14,0.75); backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.12); border-radius: 10px;
+    font-size: 11px; display: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  #tooltip .tt-title { font-weight: 700; font-size: 13px; color: #fff; margin-bottom: 6px; line-height: 1.3; }
+  #tooltip .tt-meta { color: #888; margin-bottom: 4px; }
+  #tooltip .tt-tags { color: #666; font-size: 10px; margin-top: 6px; }
+  #tooltip .tt-cluster { font-size: 10px; padding: 2px 8px; border-radius: 4px; display: inline-block; margin-top: 6px; }
+  
+  /* ---------- LOADING ---------- */
+  #loading-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100;
+    background: #000; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+  #loading-overlay .spinner { width: 40px; height: 40px; border: 2px solid rgba(255,255,255,0.1);
+    border-top-color: #ff9500; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loading-overlay .load-text { margin-top: 16px; font-size: 11px; color: #555; }
+  #loading-overlay .load-phase { font-size: 10px; color: #333; margin-top: 6px; }
+
+  /* ---------- CLUSTER PANEL (Phase 5) ---------- */
+  #cluster-panel {
+    position: fixed; top: 20px; left: 20px; z-index: 20;
+    width: 280px; max-height: calc(100vh - 40px);
+    background: rgba(8,8,14,0.88); backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.06); border-radius: 10px;
+    overflow: hidden; display: flex; flex-direction: column;
+  }
+  #cluster-panel-header {
+    padding: 12px 14px 8px; border-bottom: 1px solid rgba(255,255,255,0.06);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  #cluster-panel-header h2 { font-size: 11px; font-weight: 700; color: #aaa; letter-spacing: 1.5px; text-transform: uppercase; }
+  #cluster-panel-search {
+    width: 100%; padding: 6px 10px; margin: 0 14px 8px; font-size: 10px;
+    font-family: 'Space Mono', monospace; color: #ccc;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 5px; outline: none; width: calc(100% - 28px);
+  }
+  #cluster-panel-search::placeholder { color: #444; }
+  #cluster-list {
+    flex: 1; overflow-y: auto; padding: 4px 0;
+  }
+  #cluster-list::-webkit-scrollbar { width: 4px; }
+  #cluster-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+  .cl-item {
+    padding: 8px 14px; cursor: pointer; border-left: 3px solid transparent;
+    transition: all 0.2s ease;
+  }
+  .cl-item:hover { background: rgba(255,255,255,0.04); }
+  .cl-item.active { background: rgba(255,255,255,0.06); }
+  .cl-item-header { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .cl-item-name { font-size: 10px; font-weight: 700; color: #ddd; flex: 1; line-height: 1.3; }
+  .cl-item-count { font-size: 10px; color: #666; white-space: nowrap; }
+  .cl-item-density {
+    font-size: 9px; color: #555; margin-top: 3px;
+  }
+  .cl-item-density .density-bar {
+    display: inline-block; height: 3px; border-radius: 2px; vertical-align: middle; margin-left: 4px;
+  }
+  .cl-item-authors { font-size: 9px; color: #555; margin-top: 4px; line-height: 1.4; }
+  .cl-item-sparkline { margin-top: 4px; }
+  .cl-item-sparkline svg { display: block; }
+  #panel-toggle {
+    position: fixed; top: 24px; left: 24px; z-index: 21;
+    background: rgba(10,10,14,0.8); backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;
+    color: #aaa; font-family: 'Space Mono', monospace; font-size: 10px;
+    padding: 4px 10px; cursor: pointer; display: none;
+  }
+  #panel-toggle:hover { color: #fff; border-color: rgba(255,255,255,0.2); }
+</style>
+</head>
+<body>
+
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <div class="load-text">Loading AICI Map...</div>
+  <div class="load-phase" id="load-phase"></div>
+</div>
+
+<div id="canvas-container"></div>
+
+<div id="title-bar">
+  <h1>AICI Map</h1>
+  <div class="subtitle">Topologies of Alignment Thought</div>
+  <div id="post-count"></div>
+</div>
+
+<div id="search-wrap">
+  <input type="text" id="search-input" placeholder="Search posts..." autocomplete="off">
+</div>
+
+<div id="filter-panel">
+  <div class="filter-section">
+    <label>Cluster</label>
+    <select id="cluster-select" multiple></select>
+  </div>
+  <div class="filter-section">
+    <label>Date From</label>
+    <input type="range" id="date-from" min="2009" max="2026" value="2009" step="1">
+    <div class="filter-val" id="date-from-val">2009</div>
+  </div>
+  <div class="filter-section">
+    <label>Date To</label>
+    <input type="range" id="date-to" min="2009" max="2026" value="2026" step="1">
+    <div class="filter-val" id="date-to-val">2026</div>
+  </div>
+  <div class="filter-section">
+    <label>Min Score</label>
+    <input type="range" id="min-score" min="-5" max="500" value="-5" step="5">
+    <div class="filter-val" id="min-score-val">-5</div>
+  </div>
+  <div class="filter-section">
+    <div class="toggle-row">
+      <input type="checkbox" id="pulse-toggle">
+      <label for="pulse-toggle" style="text-transform:none; color:#aaa; cursor:pointer;">Pulse recent (30d)</label>
+    </div>
+  </div>
+</div>
+
+<div id="timeline-wrap">
+  <input type="range" id="timeline-slider" min="0" max="100" value="100" step="1">
+  <div id="timeline-label">All posts</div>
+</div>
+
+<div id="topology-bar">
+  <div class="topo-btn active" data-topo="loom">
+    <div class="name">Semantic Loom</div>
+    <div class="desc">The raw shape of knowledge</div>
+  </div>
+  <div class="topo-btn" data-topo="gravity">
+    <div class="name">Gravity Wells</div>
+    <div class="desc">Where does mass concentrate?</div>
+  </div>
+  <div class="topo-btn" data-topo="archipelago">
+    <div class="name">Archipelago</div>
+    <div class="desc">What are the isolated frontiers?</div>
+  </div>
+  <div class="topo-btn" data-topo="temporal">
+    <div class="name">Temporal Strata</div>
+    <div class="desc">How did this field grow?</div>
+  </div>
+  <div class="topo-btn" data-topo="influence">
+    <div class="name">Influence Cartography</div>
+    <div class="desc">Who are the gravitational centers?</div>
+  </div>
+</div>
+
+<div id="cluster-panel">
+  <div id="cluster-panel-header">
+    <h2>Clusters</h2>
+    <span id="panel-close" style="cursor:pointer; color:#555; font-size:14px;" title="Collapse">◀</span>
+  </div>
+  <input type="text" id="cluster-panel-search" placeholder="Filter clusters...">
+  <div id="cluster-list"></div>
+</div>
+<button id="panel-toggle" title="Show cluster panel">▶ Clusters</button>
+
+<div id="tooltip">
+  <div class="tt-title"></div>
+  <div class="tt-meta tt-author"></div>
+  <div class="tt-meta tt-date"></div>
+  <div class="tt-meta tt-score"></div>
+  <div class="tt-tags"></div>
+  <div class="tt-cluster"></div>
+</div>
+
+<!-- Import map for local ES modules -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "./lib/three.module.js",
+    "three/addons/": "./lib/"
+  }
+}
+</script>
+<script src="./lib/gsap.min.js"></script>
+
+<script type="module">
+// ================================================================
+// AICI MAP — Phase 4: 3D Visualization
+// ================================================================
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+console.log("Phase 4: Initializing AICI Map...");
+
+// ---------- GLOBALS ----------
+let posts = [], edges = [], postMap = {};
+let scene, camera, renderer, composer, controls;
+let nodeMesh, edgeLines, starField;
+let impulseParticles, impulseData = [];
+let clusterColors = {};
+let currentTopo = 'loom';
+let topoPositions = {};
+let raycaster, mouse, hoveredIndex = -1;
+let sortedDates = [];
+const SCALE = 2.0;
+
+// ---------- BIOLUMINESCENT PALETTE ----------
+const PALETTE_BASES = [
+  [0.051, 0.451, 0.467],
+  [0.078, 0.569, 0.608],
+  [0.039, 0.388, 0.471],
+  [0.420, 0.129, 0.659],
+  [0.576, 0.200, 0.918],
+  [0.478, 0.114, 0.776],
+  [0.145, 0.388, 0.922],
+  [0.231, 0.510, 0.965],
+  [0.114, 0.294, 0.745],
+  [0.851, 0.467, 0.024],
+  [0.961, 0.620, 0.043],
+  [0.808, 0.361, 0.012],
+  [0.188, 0.784, 0.682],
+  [0.380, 0.220, 0.820],
+  [0.098, 0.541, 0.847],
+  [0.922, 0.478, 0.176],
+];
+
+function generateClusterColor(clusterId) {
+  const base = PALETTE_BASES[clusterId % PALETTE_BASES.length];
+  const cycle = Math.floor(clusterId / PALETTE_BASES.length);
+  const shift = cycle * 0.06;
+  return new THREE.Color(
+    Math.min(1, base[0] + shift * 0.3),
+    Math.min(1, base[1] + shift * 0.15),
+    Math.min(1, base[2] - shift * 0.1)
+  );
+}
+
+// ---------- LOADING ----------
+function setLoadPhase(msg) {
+  const el = document.getElementById('load-phase');
+  if (el) el.textContent = msg;
+}
+
+async function loadData() {
+  setLoadPhase('Fetching posts...');
+  const postResp = await fetch('af_posts_embedded.json');
+  posts = await postResp.json();
+  console.log(`Phase 4: Data loaded — ${posts.length} posts`);
+
+  setLoadPhase('Fetching edges...');
+  const edgeResp = await fetch('af_edges.json');
+  edges = await edgeResp.json();
+  console.log(`Phase 4: Data loaded — ${edges.length} edges`);
+
+  posts.forEach((p, i) => { p._idx = i; postMap[p.id] = p; });
+  const clusterIds = [...new Set(posts.map(p => p.cluster_id))].sort((a,b) => a-b);
+  clusterIds.forEach(cid => { clusterColors[cid] = generateClusterColor(cid); });
+  sortedDates = posts.map(p => new Date(p.date).getTime()).filter(d => !isNaN(d)).sort((a,b) => a-b);
+  setLoadPhase('Building scene...');
+}
+
+// ---------- SCENE SETUP ----------
+function initScene() {
+  const container = document.getElementById('canvas-container');
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x000000);
+  scene.fog = new THREE.FogExp2(0x000000, 0.015);
+  
+  camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
+  camera.position.set(0, 0, 20);
+  
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.toneMapping = THREE.ReinhardToneMapping;
+  renderer.toneMappingExposure = 1.5;
+  container.appendChild(renderer.domElement);
+  
+  // Bloom — EXACT SPEC: strength=1.2, radius=0.4, threshold=0.1
+  const renderPass = new RenderPass(scene, camera);
+  const bloomPass = new UnrealBloomPass(
+    new THREE.Vector2(window.innerWidth, window.innerHeight),
+    1.2, 0.4, 0.1
+  );
+  composer = new EffectComposer(renderer);
+  composer.addPass(renderPass);
+  composer.addPass(bloomPass);
+  
+  // Controls
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.05;
+  controls.rotateSpeed = 0.5;
+  controls.minDistance = 2;
+  controls.maxDistance = 60;
+  
+  raycaster = new THREE.Raycaster();
+  mouse = new THREE.Vector2(-999, -999);
+  
+  console.log("Phase 4: Scene initialized");
+}
+
+// ---------- STAR FIELD ----------
+function createStarField() {
+  const count = 2000;
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    positions[i*3]   = (Math.random()-0.5)*150;
+    positions[i*3+1] = (Math.random()-0.5)*150;
+    positions[i*3+2] = (Math.random()-0.5)*150;
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const mat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.05, transparent: true, opacity: 0.6 });
+  starField = new THREE.Points(geo, mat);
+  scene.add(starField);
+}
+
+// ---------- TOPOLOGY POSITIONS ----------
+function computeTopoPositions() {
+  setLoadPhase('Computing topologies...');
+  let cx=0, cy=0, cz=0;
+  posts.forEach(p => { cx+=p.x; cy+=p.y; cz+=p.z; });
+  cx/=posts.length; cy/=posts.length; cz/=posts.length;
+  
+  const clusterStats = {};
+  posts.forEach(p => {
+    if (!clusterStats[p.cluster_id]) clusterStats[p.cluster_id] = {count:0,sx:0,sy:0,sz:0,totalScore:0};
+    const s = clusterStats[p.cluster_id];
+    s.count++; s.sx+=p.x; s.sy+=p.y; s.sz+=p.z; s.totalScore+=p.score;
+  });
+  Object.values(clusterStats).forEach(s => { s.mx=s.sx/s.count; s.my=s.sy/s.count; s.mz=s.sz/s.count; });
+  
+  const authorStats = {};
+  posts.forEach(p => {
+    if (!authorStats[p.author]) authorStats[p.author] = {count:0,totalScore:0};
+    authorStats[p.author].count++;
+    authorStats[p.author].totalScore += p.score;
+  });
+  
+  const validDates = posts.filter(p=>p.date).map(p=>new Date(p.date).getTime()).filter(d=>!isNaN(d));
+  const minDate = Math.min(...validDates);
+  const maxDate = Math.max(...validDates);
+  const dateRange = maxDate - minDate || 1;
+  
+  topoPositions = { loom:[], gravity:[], archipelago:[], temporal:[], influence:[] };
+  
+  posts.forEach((p, i) => {
+    const x=(p.x-cx)*SCALE, y=(p.y-cy)*SCALE, z=(p.z-cz)*SCALE;
+    const cs = clusterStats[p.cluster_id];
+    const cmx=(cs.mx-cx)*SCALE, cmy=(cs.my-cy)*SCALE, cmz=(cs.mz-cz)*SCALE;
+    
+    // 1. Semantic Loom
+    topoPositions.loom.push(x,y,z);
+    
+    // 2. Gravity Wells
+    const pull = Math.min(0.85, cs.count/200);
+    topoPositions.gravity.push(x*(1-pull)+cmx*pull, y*(1-pull)+cmy*pull, z*(1-pull)+cmz*pull);
+    
+    // 3. Archipelago
+    const ca = (p.cluster_id*2.399)%(Math.PI*2);
+    const cr = Math.sqrt(p.cluster_id+1)*3;
+    topoPositions.archipelago.push(
+      Math.cos(ca)*cr+(x-cmx)*0.4,
+      Math.sin(ca)*cr+(y-cmy)*0.4,
+      (z-cmz)*0.4
+    );
+    
+    // 4. Temporal Strata
+    const pD = p.date ? new Date(p.date).getTime() : minDate;
+    const dN = (pD-minDate)/dateRange;
+    topoPositions.temporal.push(x, (dN-0.5)*20, z);
+    
+    // 5. Influence Cartography
+    const auth = authorStats[p.author]||{count:1,totalScore:1};
+    const inf = Math.log(auth.totalScore+1)*Math.log(auth.count+1);
+    const infS = 1 - Math.min(inf/12, 1)*0.7;
+    topoPositions.influence.push(x*infS, y*infS, z*infS);
+  });
+  
+  console.log("Phase 4: Topology system ready — 5 views");
+}
+
+// ---------- NODES ----------
+function createNodes() {
+  setLoadPhase('Creating nodes...');
+  const geo = new THREE.IcosahedronGeometry(1, 2);
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true });
+  nodeMesh = new THREE.InstancedMesh(geo, mat, posts.length);
+  nodeMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  
+  const dummy = new THREE.Object3D();
+  posts.forEach((p, i) => {
+    const pos = topoPositions.loom;
+    dummy.position.set(pos[i*3], pos[i*3+1], pos[i*3+2]);
+    const size = Math.max(0.03, Math.log(Math.abs(p.score)+1)*0.04);
+    dummy.scale.setScalar(size);
+    dummy.updateMatrix();
+    nodeMesh.setMatrixAt(i, dummy.matrix);
+    nodeMesh.setColorAt(i, clusterColors[p.cluster_id] || new THREE.Color(0xffffff));
+  });
+  nodeMesh.instanceMatrix.needsUpdate = true;
+  nodeMesh.instanceColor.needsUpdate = true;
+  scene.add(nodeMesh);
+}
+
+// ---------- EDGES ----------
+function createEdges() {
+  setLoadPhase('Creating edges...');
+  const positions = [], colors = [];
+  edges.forEach(e => {
+    const src = postMap[e.source_id], tgt = postMap[e.target_id];
+    if (!src||!tgt) return;
+    const si=src._idx, ti=tgt._idx, pos=topoPositions.loom;
+    positions.push(pos[si*3],pos[si*3+1],pos[si*3+2], pos[ti*3],pos[ti*3+1],pos[ti*3+2]);
+    const cc = clusterColors[src.cluster_id] || new THREE.Color(1,1,1);
+    colors.push(cc.r,cc.g,cc.b, cc.r,cc.g,cc.b);
+  });
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  const mat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.28 });
+  edgeLines = new THREE.LineSegments(geo, mat);
+  scene.add(edgeLines);
+}
+
+// ---------- IMPULSE PARTICLES ----------
+function createImpulseParticles() {
+  const count = Math.min(edges.length, 500);
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  impulseData = [];
+  for (let i = 0; i < count; i++) {
+    const e = edges[i];
+    const src = postMap[e.source_id], tgt = postMap[e.target_id];
+    if (!src||!tgt) continue;
+    impulseData.push({ srcIdx:src._idx, tgtIdx:tgt._idx, progress:Math.random(), speed:0.002+Math.random()*0.005, idx:i });
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const mat = new THREE.PointsMaterial({ color: 0xff9500, size: 0.08, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending });
+  impulseParticles = new THREE.Points(geo, mat);
+  scene.add(impulseParticles);
+}
+
+function updateImpulseParticles() {
+  if (!impulseParticles||!impulseData.length) return;
+  const posAttr = impulseParticles.geometry.attributes.position;
+  const tp = topoPositions[currentTopo];
+  impulseData.forEach(d => {
+    d.progress += d.speed;
+    if (d.progress > 1) d.progress -= 1;
+    const si=d.srcIdx, ti=d.tgtIdx, t=d.progress;
+    posAttr.array[d.idx*3]   = tp[si*3]*(1-t)   + tp[ti*3]*t;
+    posAttr.array[d.idx*3+1] = tp[si*3+1]*(1-t) + tp[ti*3+1]*t;
+    posAttr.array[d.idx*3+2] = tp[si*3+2]*(1-t) + tp[ti*3+2]*t;
+  });
+  posAttr.needsUpdate = true;
+}
+
+// ---------- TOPOLOGY SWITCHING ----------
+function switchTopology(topoName) {
+  if (topoName === currentTopo) return;
+  currentTopo = topoName;
+  document.querySelectorAll('.topo-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.topo === topoName));
+  
+  const targetPos = topoPositions[topoName];
+  if (!targetPos) return;
+  
+  const dummy = new THREE.Object3D();
+  const startPositions = [];
+  for (let i = 0; i < posts.length; i++) {
+    const m = new THREE.Matrix4();
+    nodeMesh.getMatrixAt(i, m);
+    const p = new THREE.Vector3();
+    p.setFromMatrixPosition(m);
+    startPositions.push(p.x, p.y, p.z);
+  }
+  
+  const animObj = { t: 0 };
+  gsap.to(animObj, {
+    t: 1, duration: 2, ease: "power2.inOut",
+    onUpdate: () => {
+      const t = animObj.t;
+      for (let i = 0; i < posts.length; i++) {
+        const sx=startPositions[i*3], sy=startPositions[i*3+1], sz=startPositions[i*3+2];
+        const tx=targetPos[i*3], ty=targetPos[i*3+1], tz=targetPos[i*3+2];
+        const m = new THREE.Matrix4();
+        nodeMesh.getMatrixAt(i, m);
+        const scale = new THREE.Vector3();
+        scale.setFromMatrixScale(m);
+        dummy.position.set(sx+(tx-sx)*t, sy+(ty-sy)*t, sz+(tz-sz)*t);
+        dummy.scale.copy(scale);
+        dummy.updateMatrix();
+        nodeMesh.setMatrixAt(i, dummy.matrix);
+      }
+      nodeMesh.instanceMatrix.needsUpdate = true;
+      updateEdgePositions(t, startPositions, targetPos);
+    }
+  });
+}
+
+function updateEdgePositions(t, startPos, targetPos) {
+  if (!edgeLines) return;
+  const posAttr = edgeLines.geometry.attributes.position;
+  let vi = 0;
+  edges.forEach(e => {
+    const src = postMap[e.source_id], tgt = postMap[e.target_id];
+    if (!src||!tgt) return;
+    const si=src._idx, ti=tgt._idx;
+    for (let ax=0; ax<3; ax++) { posAttr.array[vi]=startPos[si*3+ax]+(targetPos[si*3+ax]-startPos[si*3+ax])*t; vi++; }
+    for (let ax=0; ax<3; ax++) { posAttr.array[vi]=startPos[ti*3+ax]+(targetPos[ti*3+ax]-startPos[ti*3+ax])*t; vi++; }
+  });
+  posAttr.needsUpdate = true;
+}
+
+// ---------- FILTERING ----------
+let activeFilters = { search:'', clusters:null, dateFrom:2009, dateTo:2026, minScore:-5, timeline:1.0, pulse:false };
+
+function applyFilters() {
+  const dummy = new THREE.Object3D();
+  const now = Date.now();
+  const thirtyDays = 30*24*60*60*1000;
+  const time = performance.now()*0.001;
+  
+  posts.forEach((p, i) => {
+    let visible = true;
+    if (activeFilters.search) {
+      const q = activeFilters.search.toLowerCase();
+      visible = (p.title||'').toLowerCase().includes(q) || (p.author||'').toLowerCase().includes(q) || (p.tags||[]).some(t=>t.toLowerCase().includes(q));
+    }
+    if (activeFilters.clusters && activeFilters.clusters.size > 0 && !activeFilters.clusters.has(p.cluster_id)) visible = false;
+    const pYear = p.date ? new Date(p.date).getFullYear() : 2009;
+    if (pYear < activeFilters.dateFrom || pYear > activeFilters.dateTo) visible = false;
+    if (p.score < activeFilters.minScore) visible = false;
+    if (activeFilters.timeline < 1 && p.date) {
+      const pTime = new Date(p.date).getTime();
+      const cutoff = sortedDates[Math.floor(activeFilters.timeline*(sortedDates.length-1))]||Infinity;
+      if (pTime > cutoff) visible = false;
+    }
+    
+    const m = new THREE.Matrix4();
+    nodeMesh.getMatrixAt(i, m);
+    const pos = new THREE.Vector3();
+    pos.setFromMatrixPosition(m);
+    
+    let size = Math.max(0.03, Math.log(Math.abs(p.score)+1)*0.04);
+    if (activeFilters.pulse && p.date) {
+      if (now - new Date(p.date).getTime() < thirtyDays) size *= 1 + Math.sin(time*3+i)*0.3;
+    }
+    if (!visible) size = 0;
+    
+    dummy.position.copy(pos);
+    dummy.scale.setScalar(size);
+    dummy.updateMatrix();
+    nodeMesh.setMatrixAt(i, dummy.matrix);
+    
+    if (activeFilters.search && visible) nodeMesh.setColorAt(i, new THREE.Color(0xffffff));
+    else if (activeFilters.search && !visible) nodeMesh.setColorAt(i, new THREE.Color(0x111111));
+    else nodeMesh.setColorAt(i, clusterColors[p.cluster_id]||new THREE.Color(0xffffff));
+  });
+  nodeMesh.instanceMatrix.needsUpdate = true;
+  if (nodeMesh.instanceColor) nodeMesh.instanceColor.needsUpdate = true;
+}
+
+// ---------- INTERACTION ----------
+function onMouseMove(e) {
+  mouse.x = (e.clientX/window.innerWidth)*2 - 1;
+  mouse.y = -(e.clientY/window.innerHeight)*2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const intersects = raycaster.intersectObject(nodeMesh);
+  const tooltip = document.getElementById('tooltip');
+  
+  if (intersects.length > 0) {
+    const idx = intersects[0].instanceId;
+    if (idx !== undefined && idx < posts.length) {
+      hoveredIndex = idx;
+      const p = posts[idx];
+      const cc = clusterColors[p.cluster_id];
+      const bc = cc ? `rgb(${Math.round(cc.r*255)},${Math.round(cc.g*255)},${Math.round(cc.b*255)})` : '#fff';
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX+16)+'px';
+      tooltip.style.top = (e.clientY-10)+'px';
+      tooltip.style.borderColor = bc;
+      tooltip.querySelector('.tt-title').textContent = p.title;
+      tooltip.querySelector('.tt-author').textContent = '↳ ' + p.author;
+      tooltip.querySelector('.tt-date').textContent = p.date ? new Date(p.date).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'}) : '';
+      tooltip.querySelector('.tt-score').textContent = '⬆ ' + p.score + ' · ' + (p.commentCount||0) + ' comments · ' + (p.wordCount||0) + ' words';
+      tooltip.querySelector('.tt-tags').textContent = (p.tags||[]).join(' · ');
+      const clEl = tooltip.querySelector('.tt-cluster');
+      clEl.textContent = '[' + p.cluster_label + ']';
+      clEl.style.background = bc; clEl.style.color = '#000';
+      document.body.style.cursor = 'pointer';
+      return;
+    }
+  }
+  hoveredIndex = -1;
+  tooltip.style.display = 'none';
+  document.body.style.cursor = 'default';
+}
+
+function onClick() {
+  if (hoveredIndex >= 0 && hoveredIndex < posts.length) {
+    const p = posts[hoveredIndex];
+    if (p.url) window.open(p.url, '_blank');
+  }
+}
+
+// ---------- UI BINDINGS ----------
+function bindUI() {
+  document.querySelectorAll('.topo-btn').forEach(btn => btn.addEventListener('click', () => switchTopology(btn.dataset.topo)));
+  document.getElementById('search-input').addEventListener('input', e => { activeFilters.search = e.target.value; applyFilters(); });
+  
+  const clusterSelect = document.getElementById('cluster-select');
+  const cids = [...new Set(posts.map(p=>p.cluster_id))].sort((a,b)=>a-b);
+  cids.forEach(cid => {
+    const label = posts.find(p=>p.cluster_id===cid)?.cluster_label || `Cluster ${cid}`;
+    const count = posts.filter(p=>p.cluster_id===cid).length;
+    const opt = document.createElement('option');
+    opt.value = cid; opt.textContent = `${label} (${count})`;
+    clusterSelect.appendChild(opt);
+  });
+  clusterSelect.addEventListener('change', () => {
+    const sel = [...clusterSelect.selectedOptions].map(o=>parseInt(o.value));
+    activeFilters.clusters = sel.length > 0 ? new Set(sel) : null;
+    applyFilters();
+  });
+  
+  document.getElementById('date-from').addEventListener('input', e => {
+    activeFilters.dateFrom = parseInt(e.target.value);
+    document.getElementById('date-from-val').textContent = e.target.value;
+    applyFilters();
+  });
+  document.getElementById('date-to').addEventListener('input', e => {
+    activeFilters.dateTo = parseInt(e.target.value);
+    document.getElementById('date-to-val').textContent = e.target.value;
+    applyFilters();
+  });
+  document.getElementById('min-score').addEventListener('input', e => {
+    activeFilters.minScore = parseInt(e.target.value);
+    document.getElementById('min-score-val').textContent = e.target.value;
+    applyFilters();
+  });
+  document.getElementById('timeline-slider').addEventListener('input', e => {
+    activeFilters.timeline = parseInt(e.target.value)/100;
+    if (activeFilters.timeline >= 1) document.getElementById('timeline-label').textContent = 'All posts';
+    else {
+      const idx = Math.floor(activeFilters.timeline*(sortedDates.length-1));
+      document.getElementById('timeline-label').textContent = new Date(sortedDates[idx]).toLocaleDateString('en-US',{year:'numeric',month:'short'});
+    }
+    applyFilters();
+  });
+  document.getElementById('pulse-toggle').addEventListener('change', e => { activeFilters.pulse = e.target.checked; });
+  
+  window.addEventListener('mousemove', onMouseMove);
+  window.addEventListener('click', onClick);
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    composer.setSize(window.innerWidth, window.innerHeight);
+  });
+  
+  document.getElementById('post-count').textContent = `${posts.length} posts · ${edges.length} edges · ${Object.keys(clusterColors).length} clusters`;
+}
+
+// ---------- CLUSTER INTELLIGENCE PANEL (Phase 5) ----------
+let isolatedCluster = null;
+
+function buildClusterPanel() {
+  const clusterData = {};
+  posts.forEach(p => {
+    const cid = p.cluster_id;
+    if (!clusterData[cid]) clusterData[cid] = { id: cid, label: p.cluster_label, posts: [], authors: {}, months: {} };
+    const cd = clusterData[cid];
+    cd.posts.push(p);
+    cd.authors[p.author] = (cd.authors[p.author] || 0) + 1;
+    if (p.date) {
+      const d = new Date(p.date);
+      const mk = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+      cd.months[mk] = (cd.months[mk] || 0) + 1;
+    }
+  });
+
+  const sorted = Object.values(clusterData).sort((a,b) => b.posts.length - a.posts.length);
+  const list = document.getElementById('cluster-list');
+  list.innerHTML = '';
+
+  sorted.forEach(cd => {
+    const cc = clusterColors[cd.id];
+    const borderColor = cc ? `rgb(${Math.round(cc.r*255)},${Math.round(cc.g*255)},${Math.round(cc.b*255)})` : '#555';
+    const density = (cd.posts.length / posts.length * 100).toFixed(1);
+    const densityW = Math.min(60, cd.posts.length / posts.length * 600);
+
+    // Top 5 authors
+    const topAuthors = Object.entries(cd.authors).sort((a,b) => b[1]-a[1]).slice(0,5);
+    const authStr = topAuthors.map(([a,c]) => `${a} (${c})`).join(', ');
+
+    // Sparkline SVG
+    const monthKeys = Object.keys(cd.months).sort();
+    let sparkSvg = '';
+    if (monthKeys.length > 1) {
+      const vals = monthKeys.map(k => cd.months[k]);
+      const maxV = Math.max(...vals, 1);
+      const w = 120, h = 18;
+      const pts = vals.map((v,i) => `${(i/(vals.length-1))*w},${h - (v/maxV)*h}`);
+      sparkSvg = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts.join(' ')}" fill="none" stroke="${borderColor}" stroke-width="1.2" stroke-opacity="0.6"/></svg>`;
+    }
+
+    const item = document.createElement('div');
+    item.className = 'cl-item';
+    item.dataset.cid = cd.id;
+    item.style.borderLeftColor = borderColor;
+    item.innerHTML = `
+      <div class="cl-item-header">
+        <span class="cl-item-name">[${cd.label}]</span>
+        <span class="cl-item-count">${cd.posts.length}</span>
+      </div>
+      <div class="cl-item-density">${density}% <span class="density-bar" style="width:${densityW}px; background:${borderColor};"></span></div>
+      <div class="cl-item-authors">${authStr}</div>
+      <div class="cl-item-sparkline">${sparkSvg}</div>
+    `;
+
+    item.addEventListener('click', () => {
+      const cid = parseInt(item.dataset.cid);
+      if (isolatedCluster === cid) {
+        // De-isolate
+        isolatedCluster = null;
+        document.querySelectorAll('.cl-item').forEach(el => el.classList.remove('active'));
+        activeFilters.clusters = null;
+        applyFilters();
+      } else {
+        // Isolate this cluster
+        isolatedCluster = cid;
+        document.querySelectorAll('.cl-item').forEach(el => el.classList.remove('active'));
+        item.classList.add('active');
+        activeFilters.clusters = new Set([cid]);
+        applyFilters();
+
+        // Zoom camera toward cluster centroid
+        const cp = posts.filter(p => p.cluster_id === cid);
+        const tp = topoPositions[currentTopo];
+        let cx=0,cy=0,cz=0;
+        cp.forEach(p => { cx+=tp[p._idx*3]; cy+=tp[p._idx*3+1]; cz+=tp[p._idx*3+2]; });
+        cx/=cp.length; cy/=cp.length; cz/=cp.length;
+        gsap.to(controls.target, { x:cx, y:cy, z:cz, duration:1.5, ease:'power2.inOut' });
+      }
+    });
+
+    list.appendChild(item);
+  });
+
+  // Panel search filter
+  document.getElementById('cluster-panel-search').addEventListener('input', e => {
+    const q = e.target.value.toLowerCase();
+    document.querySelectorAll('.cl-item').forEach(el => {
+      const name = el.querySelector('.cl-item-name').textContent.toLowerCase();
+      el.style.display = name.includes(q) ? '' : 'none';
+    });
+  });
+
+  // Panel collapse/expand
+  document.getElementById('panel-close').addEventListener('click', () => {
+    document.getElementById('cluster-panel').style.display = 'none';
+    document.getElementById('panel-toggle').style.display = 'block';
+  });
+  document.getElementById('panel-toggle').addEventListener('click', () => {
+    document.getElementById('cluster-panel').style.display = 'flex';
+    document.getElementById('panel-toggle').style.display = 'none';
+  });
+}
+
+// ---------- ANIMATE ----------
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  if (activeFilters.pulse) applyFilters();
+  updateImpulseParticles();
+  if (starField) { starField.rotation.y+=0.00005; starField.rotation.x+=0.00002; }
+  composer.render();
+}
+
+// ---------- INIT ----------
+async function init() {
+  try {
+    await loadData();
+    initScene();
+    createStarField();
+    computeTopoPositions();
+    createNodes();
+    createEdges();
+    createImpulseParticles();
+    bindUI();
+    buildClusterPanel();
+    document.getElementById('loading-overlay').style.display = 'none';
+    console.log("Phase 4: Visualization complete — all systems active");
+    console.log("Phase 5: Cluster panel initialized");
+    animate();
+  } catch (err) {
+    console.error("Phase 4 ERROR:", err);
+    setLoadPhase('Error: ' + err.message);
+  }
+}
+
+init();
+</script>
+</body>
+</html>
