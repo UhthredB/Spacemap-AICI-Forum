@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/badge/authors-647-4caf50?style=flat-square&labelColor=0a0a0e" />
 </p>
 
-# AICI Map
+# Space Map
 
 ### Topologies of Alignment Thought
 
