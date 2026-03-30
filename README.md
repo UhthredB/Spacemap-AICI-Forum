@@ -188,6 +188,4 @@ MIT
 
 ---
 
-<p align="center">
-  <em>Built for the AI Safety Institute Forum hackathon, March 2025</em>
 </p>
